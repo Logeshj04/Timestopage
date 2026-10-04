@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pdms
+      POSTGRES_PASSWORD: pdms
+      POSTGRES_DB: pdms
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pdms -d pdms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://pdms:pdms@db:5432/pdms
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-production}
+      CORS_ORIGINS: http://localhost:5173,http://localhost:8080,http://frontend:80
+      TIMEZONE: Asia/Kolkata
+      DEV_ADMIN_USERNAME: admin
+      DEV_ADMIN_PASSWORD: ChangeMeAdmin123!
+      DEV_SUPERVISOR_USERNAME: supervisor
+      DEV_SUPERVISOR_PASSWORD: ChangeMeSupervisor123!
+      SEED_DEMO_STOPPAGES: "false"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+        VITE_WS_URL: ws://localhost:8000/api/ws
+        VITE_APP_NAME: Production Downtime Management System
+        VITE_COMPANY_NAME: Your Company
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
